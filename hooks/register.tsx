@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Estado, Git, Modo } from '../types'
+import type { Estado, Git, Modo, Subida } from '../types'
 
 const PEDIDO = `Haz commit y push de los cambios pendientes. Es mi petición expresa. Hazlo en cada repositorio git de esta sesión: el directorio de trabajo principal y los directorios añadidos, uno por uno, cada uno con su commit y su push.
 
@@ -18,7 +18,7 @@ Si este proyecto tiene su propia orden (.claude/skills/commit-push/SKILL.md o .c
 const modo = atom({ plugin: 'botones-commit', key: 'modo' } as const, 'show' as Modo)
 const estado = atom({ plugin: 'botones-commit', key: 'estado' } as const, 'idle' as Estado)
 const paso = atom({ plugin: 'botones-commit', key: 'paso' } as const, 0)
-const antes = atom({ plugin: 'botones-commit', key: 'antes' } as const, '')
+const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { push: false, hash: '' } as Subida)
 const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', hash: '' } as Git)
 
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -64,13 +64,30 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Mientras corre el turno del botón, mira los comandos de git que lanza: si un push subió algo
+  // (la salida trae «rama -> rama») y el hash del commit que lo acompaña («[rama abc1234] …»).
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const r = await next(e)
+    const orden = typeof e.command === 'string' ? e.command : ''
+    if (!/\bgit\b/.test(orden) || (await read($, estado)) !== 'running' || !('result' in r) || r.isError) {
+      return r
+    }
+    const salida = JSON.stringify(r.result ?? '')
+    const commit = /\[[^\]\s]+ ([0-9a-f]{7,40})\]/.exec(salida)
+    const subio = /\bpush\b/.test(orden) && /\S+\s*->\s*\S+/.test(salida)
+    if (commit || subio) {
+      await update($, subida, x => ({ push: x.push || subio, hash: commit?.[1]?.slice(0, 7) ?? x.hash }))
+    }
+
+    return r
+  })
+
   on('turn.complete', async ($, e, next) => {
     if ((await read($, estado)) === 'running') {
       parar()
       await leerGit($)
-      const { hash } = await read($, git)
-      const previo = await read($, antes)
-      await update($, estado, () => (hash && hash !== previo ? 'done' : 'none'))
+      const { push } = await read($, subida)
+      await update($, estado, () => (push ? 'done' : 'none'))
       void $.clock.after(6000, () => update($, estado, () => 'idle'))
     }
 
@@ -91,7 +108,8 @@ export const register: Register = on => {
     }
 
     const fase = await read($, estado)
-    const { rama, hash } = await read($, git)
+    const { rama } = await read($, git)
+    const { hash } = await read($, subida)
     const n = await read($, paso)
     const { Box, Button, Text } = $.ui.resolve(e)
 
@@ -117,7 +135,7 @@ export const register: Register = on => {
     const texto = trabajando
       ? `${GIRO[n % GIRO.length]} Subiendo`
       : fase === 'done'
-        ? `✓ Subido ${hash}`
+        ? `✓ Subido${hash ? ' ' + hash : ''}`
         : fase === 'none'
           ? '— Nada que subir'
           : 'Commit + Push ↑'
@@ -135,7 +153,7 @@ export const register: Register = on => {
             if ((await read($, estado)) !== 'idle') {
               return
             }
-            await update($, antes, () => hash)
+            await update($, subida, () => ({ push: false, hash: '' }))
             await update($, estado, () => 'sent')
             await update($, paso, () => 0)
             parar()
