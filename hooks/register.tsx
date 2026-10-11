@@ -3,6 +3,9 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Estado, Git, Modo, Subida } from '../types'
 
+// Lo único que se ve en la conversación al pulsar; el pedido completo viaja aparte, como contexto que solo lee Claude.
+const VISIBLE = 'Ejecutando acción del usuario: Commit + Push'
+
 const PEDIDO = `Haz commit y push de los cambios pendientes. Es mi petición expresa. Hazlo en cada repositorio git de esta sesión: el directorio de trabajo principal y los directorios añadidos, uno por uno, cada uno con su commit y su push.
 
 Si este proyecto tiene su propia orden (.claude/skills/commit-push/SKILL.md o .claude/skills/commit/SKILL.md) o reglas de commit en CLAUDE.md, léelas y síguelas en lugar de lo de abajo.
@@ -69,6 +72,8 @@ async function leerGit($: EngineInterface) {
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
   let vigia: { cancel: () => void } | null = null
+  // el pedido de la pulsación en curso, con la rama que se veía; lo recoge el hook de prompt.submit
+  let pendiente = ''
 
   const parar = () => {
     animacion?.cancel()
@@ -86,6 +91,17 @@ export const register: Register = on => {
     vigia = $.clock.every(2000, () => leerGit($))
 
     return next(e)
+  })
+
+  // El mensaje del botón entra con el texto corto; el pedido completo va como contexto, que el usuario no ve.
+  on('prompt.submit', ($, e, next) => {
+    if (e.origin.kind !== 'plugin' || e.text !== VISIBLE || !pendiente) {
+      return next(e)
+    }
+    const pedido = pendiente
+    pendiente = ''
+
+    return next({ ...e, context: [...(e.context ?? []), pedido] })
   })
 
   // El botón queda desactivado desde que se pulsa hasta que acaba el turno que lanza.
@@ -248,9 +264,10 @@ export const register: Register = on => {
                 parar()
                 return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
               })
-              $.prompt.submit({ text: `${PEDIDO}
+              pendiente = `${PEDIDO}
 
-  El botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`, asUser: true }).catch(async () => {
+El botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`
+              $.prompt.submit({ text: VISIBLE, asUser: true }).catch(async () => {
                 parar()
                 await update($, subida, x => ({ ...x, fallo: 'no se pudo enviar el pedido' }))
                 await update($, estado, () => 'error')

@@ -8,7 +8,7 @@ Un botón encima del cuadro de texto de Claude Code que hace **commit y push** c
 
 ## Qué hace
 
-Al pulsarlo, envía a Claude, como si lo hubieras escrito tú, el pedido de:
+Al pulsarlo, en la conversación solo aparece «Ejecutando acción del usuario: Commit + Push»; el pedido completo le llega a Claude aparte, sin mostrarse. Le pide:
 
 1. revisar los cambios pendientes de **cada repositorio git de la sesión** (el directorio principal y los añadidos);
 2. pasar las comprobaciones del proyecto (tests, lint) si hay código sin comprobar;
