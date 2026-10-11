@@ -19,18 +19,18 @@ Si el proyecto tiene su propia orden (`.claude/skills/commit-push/` o `.claude/s
 
 ### Lo que verás en el botón
 
-A la izquierda, en gris, el repositorio y la rama del directorio donde trabaja la sesión (`⎇ mi-repo · main`), leídos siempre de git: solo informa y no se pulsa. Se actualiza sola cada 2 s si cambias de rama. Al pulsar, el botón vuelve a mirar la rama: si ya no es la que se ve, no envía nada y te avisa para que la revises.
+A la izquierda, en gris, la rama actual del directorio donde trabaja la sesión (`⎇ main`), leída siempre de git: solo informa y no se pulsa. Se actualiza sola cada 2 s si cambias de rama. Al pulsar, el botón vuelve a mirar la rama: si ya no es la que se ve, no envía nada y te avisa para que la revises.
 
 A su lado, el botón:
 
 | Estado | Botón |
 | --- | --- |
-| En reposo | `⎇ mi-repo · main` `─●─ Commit + Push ↑` |
-| Revisando los cambios (no responde a clics) | `⎇ mi-repo · main` `⠋ Comprobando...` (spinner y puntos animados) |
-| Hay cambios: commit y push en marcha | `⎇ mi-repo · main` `⠋ Subiendo...` (spinner y puntos animados) |
-| Subido (6 s) | `⎇ mi-repo · main` `✓ Subido 712c6b1` |
-| No había nada que subir (6 s) | `⎇ mi-repo · main` `— Nada que subir` |
-| Algo falló (hasta pulsar «Entendido») | `⎇ mi-repo · main` **`✕ No se pudo subir`** (rojo sobre gris) `origin tiene commits nuevos` `Entendido` |
+| En reposo | `⎇ main` `─●─ Commit + Push ↑` |
+| Revisando los cambios (no responde a clics) | `⎇ main` `⠋ Comprobando...` (spinner y puntos animados) |
+| Hay cambios: commit y push en marcha | `⎇ main` `⠋ Subiendo...` (spinner y puntos animados) |
+| Subido (6 s) | `⎇ main` `✓ Subido 712c6b1` |
+| No había nada que subir (6 s) | `⎇ main` `— Nada que subir` |
+| Algo falló (hasta pulsar «Entendido») | `⎇ main` **`✕ No se pudo subir`** (rojo sobre gris) `origin tiene commits nuevos` `Entendido` |
 
 Motivos que detecta: origin tiene commits nuevos, sin acceso a GitHub, falló el push, falló el commit, fallan las comprobaciones, la rama cambió, se interrumpió el turno, el turno acabó con un error.
 

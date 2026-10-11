@@ -208,7 +208,7 @@ export const register: Register = on => {
       <Box marginBottom={1} gap={1} alignItems="center" width="100%">
         {rama ? (
           // mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada
-          <Button key="rama" label={`⎇ ${repo} · ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
+          <Button key="rama" label={`⎇ ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
         ) : (
           <Text>{''}</Text>
         )}
