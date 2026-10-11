@@ -26,8 +26,8 @@ A su lado, el botón:
 | Estado | Botón |
 | --- | --- |
 | En reposo | `⎇ mi-repo · main` `─●─ Commit + Push ↑` |
-| Revisando los cambios (no responde a clics) | `⎇ mi-repo · main` `⠋ Comprobando` |
-| Hay cambios: commit y push en marcha | `⎇ mi-repo · main` `Subiendo...` (los puntos se animan) |
+| Revisando los cambios (no responde a clics) | `⎇ mi-repo · main` `⠋ Comprobando...` (spinner y puntos animados) |
+| Hay cambios: commit y push en marcha | `⎇ mi-repo · main` `⠋ Subiendo...` (spinner y puntos animados) |
 | Subido (6 s) | `⎇ mi-repo · main` `✓ Subido 712c6b1` |
 | No había nada que subir (6 s) | `⎇ mi-repo · main` `— Nada que subir` |
 | Algo falló (hasta pulsar «Entendido») | `⎇ mi-repo · main` **`✕ No se pudo subir`** (rojo sobre gris) `origin tiene commits nuevos` `Entendido` |

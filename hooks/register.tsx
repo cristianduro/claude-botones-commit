@@ -15,7 +15,7 @@ const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { repo: '', 
 
 const GRIS_FONDO = '#3a3a3c'
 const ROJO = '#ff6b6b'
-// «Subiendo...»: los tres puntos se encienden uno a uno (cada ~0,5 s); los apagados son espacios de puntuación,
+// «⠋ Comprobando...» y «⠋ Subiendo...»: spinner y los tres puntos se encienden uno a uno (cada ~0,5 s); los apagados son espacios de puntuación,
 // del mismo ancho que un punto, para que el botón no cambie de tamaño
 const puntos = (n: number) => {
   const k = Math.floor(n / 4) % 4
@@ -196,9 +196,7 @@ export const register: Register = on => {
 
     const trabajando = fase === 'sent' || fase === 'running'
     const texto = trabajando
-      ? cambios
-        ? `Subiendo${puntos(n)}`
-        : `${GIRO[n % GIRO.length]} Comprobando`
+      ? `${GIRO[n % GIRO.length]} ${cambios ? 'Subiendo' : 'Comprobando'}${puntos(n)}`
       : fase === 'done'
         ? `✓ Subido${hash ? ' ' + hash : ''}`
         : fase === 'none'
