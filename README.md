@@ -8,7 +8,7 @@ Un botón encima del cuadro de texto de Claude Code que hace **commit y push** c
 
 ## Qué hace
 
-Al pulsarlo lanza la orden del plugin `/botones-commit:commit-push rama=<rama>` (en la conversación solo se ve esa línea). La orden pide a Claude:
+Al pulsarlo, en la conversación solo aparece un mensaje corto: «Ejecutando acción del usuario: Commit + Push (rama main)». Claude carga entonces la skill del plugin (`skills/commit-push`), que tiene las reglas. Le pide:
 
 1. revisar los cambios pendientes de **cada repositorio git de la sesión** (el directorio principal y los añadidos);
 2. pasar las comprobaciones del proyecto (tests, lint) si hay código sin comprobar;

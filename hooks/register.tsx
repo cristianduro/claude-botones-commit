@@ -3,21 +3,9 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Estado, Git, Modo, Subida } from '../types'
 
-// El botón lanza la orden del plugin (skills/commit-push), que lleva todas las reglas: en la conversación
-// solo se ve «/botones-commit:commit-push rama=…». Si la orden no está, se envía el pedido escrito.
-const ORDEN = 'botones-commit:commit-push'
-
-const PEDIDO = `Haz commit y push de los cambios pendientes. Es mi petición expresa. Hazlo en cada repositorio git de esta sesión: el directorio de trabajo principal y los directorios añadidos, uno por uno, cada uno con su commit y su push.
-
-Si este proyecto tiene su propia orden (.claude/skills/commit-push/SKILL.md o .claude/skills/commit/SKILL.md) o reglas de commit en CLAUDE.md, léelas y síguelas en lugar de lo de abajo.
-
-1. git status --short y git diff --stat. Si no hay nada que guardar pero la rama va por delante de origin, pasa al push; si tampoco, dilo y termina.
-2. Añade los archivos por su nombre, nunca con git add -A a ciegas. Deja fuera compilaciones, temporales, credenciales y .env, y avísame.
-3. Si el proyecto tiene comprobaciones (tests, lint) y hay código sin comprobar en esta sesión, pásalas antes. Si fallan, no hay commit ni push: cuéntame qué falla.
-4. Mensaje en el idioma de los commits recientes (git log -5 --oneline): primera línea corta (hasta 60 caracteres) y, si hay varios cambios, una lista breve. Sin Co-Authored-By de Claude ni "Generated with Claude Code": el autor soy solo yo.
-5. Commit con mi configuración de git, sin cambiar user.name ni user.email, sin --amend ni --no-verify.
-6. Push de la rama actual (git push, o git push -u origin <rama> si no tiene remota). Nunca --force ni --force-with-lease. Si se rechaza porque origin tiene commits nuevos, no fuerces ni mezcles: cuéntamelo.
-7. Cuéntame en dos o tres líneas el hash, el mensaje, la rama y que está en GitHub.`
+// Al pulsar, en la conversación solo aparece un mensaje corto. Las reglas (commit sin coautoría, sin --force,
+// comprobar la rama…) están en la skill del plugin (skills/commit-push), que Claude carga al leer este mensaje.
+const corto = (rama: string) => `Ejecutando acción del usuario: Commit + Push${rama ? ` (rama ${rama})` : ''}`
 
 const modo = atom({ plugin: 'botones-commit', key: 'modo' } as const, 'show' as Modo)
 const estado = atom({ plugin: 'botones-commit', key: 'estado' } as const, 'idle' as Estado)
@@ -28,20 +16,6 @@ const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', 
 const GRIS_FONDO = '#3a3a3c'
 const ROJO = '#ff6b6b'
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-
-// Lanza la orden del plugin con la rama que se veía; si esta sesión no la tiene, envía el pedido escrito.
-async function lanzar($: EngineInterface, rama: string) {
-  const ordenes = await $.command.list()
-  if (ordenes.some(c => c.name === ORDEN)) {
-    await $.command.run({ command: ORDEN, args: `rama=${rama}` })
-
-    return
-  }
-  await $.prompt.submit({
-    text: `${PEDIDO}\n\nEl botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`,
-    asUser: true,
-  })
-}
 
 // Por qué ha fallado un comando del turno, en una frase corta; '' si no ha fallado.
 function motivoFallo(orden: string, salida: string, isError: boolean) {
@@ -266,7 +240,7 @@ export const register: Register = on => {
                 parar()
                 return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
               })
-              lanzar($, rama).catch(async () => {
+              $.prompt.submit({ text: corto(rama), asUser: true }).catch(async () => {
                 parar()
                 await update($, subida, x => ({ ...x, fallo: 'no se pudo enviar el pedido' }))
                 await update($, estado, () => 'error')

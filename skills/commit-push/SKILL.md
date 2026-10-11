@@ -1,17 +1,14 @@
 ---
 name: commit-push
-description: Commit y push de los cambios pendientes en cada repositorio git de la sesión, con el usuario como único autor (sin coautoría de Claude). Solo cuando el usuario pulsa el botón «Commit + Push» o escribe /botones-commit:commit-push.
-argument-hint: "[rama=<rama que mostraba el botón>]"
-disable-model-invocation: true
+description: Commit y push de los cambios pendientes en cada repositorio git de la sesión, con el usuario como único autor (sin coautoría de Claude). Úsala SIEMPRE que el usuario envíe «Ejecutando acción del usuario: Commit + Push» (el botón Commit + Push), o cuando escriba /botones-commit:commit-push.
+argument-hint: "[rama]"
 ---
 
 # Commit y push a petición del usuario
 
-El usuario ha pulsado el botón «Commit + Push» (o ha escrito la orden): es su petición expresa de commit y push.
+El usuario ha pulsado el botón «Commit + Push» (mensaje «Ejecutando acción del usuario: Commit + Push (rama X)») o ha escrito la orden: es su petición expresa de commit y push.
 
-Argumentos: `$ARGUMENTS`
-
-**Rama:** si los argumentos traen `rama=<nombre>`, es la rama que el botón mostraba para el directorio de trabajo principal. Antes de nada, compruébala con `git rev-parse --abbrev-ref HEAD` en ese directorio: si no coincide, **no hagas nada** y avisa al usuario de la rama real.
+**Rama:** el mensaje trae entre paréntesis la rama que el botón mostraba para el directorio de trabajo principal (o va en los argumentos: `$ARGUMENTS`). Antes de nada, compruébala con `git rev-parse --abbrev-ref HEAD` en ese directorio: si no coincide, **no hagas nada** y avisa al usuario de la rama real.
 
 **Si el proyecto tiene su propia orden** (`.claude/skills/commit-push/SKILL.md` o `.claude/skills/commit/SKILL.md`) o reglas de commit en `CLAUDE.md`, léelas y síguelas en lugar de lo de abajo.
 
