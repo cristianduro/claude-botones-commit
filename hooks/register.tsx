@@ -18,27 +18,39 @@ Si este proyecto tiene su propia orden (.claude/skills/commit-push/SKILL.md o .c
 const modo = atom({ plugin: 'botones-commit', key: 'modo' } as const, 'show' as Modo)
 const estado = atom({ plugin: 'botones-commit', key: 'estado' } as const, 'idle' as Estado)
 const paso = atom({ plugin: 'botones-commit', key: 'paso' } as const, 0)
-const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { push: false, hash: '' } as Subida)
+const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { cambios: false, push: false, hash: '' } as Subida)
 const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', hash: '' } as Git)
 
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
-// rama y hash actuales, para el marco
+// Rama y hash actuales del directorio de la sesión. Devuelve la rama leída ('' sin git) y solo
+// escribe el estado si algo cambió, porque el vigía la llama cada 2 s.
 async function leerGit($: EngineInterface) {
+  let rama = ''
+  let hash = ''
   try {
-    const rama = (await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
-    const hash = (await $.process.run(['git', 'rev-parse', '--short', 'HEAD'])).stdout.trim()
-    await update($, git, () => ({ rama, hash }))
+    const r = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+    if (r.exitCode === 0) {
+      rama = r.stdout.trim()
+      hash = (await $.process.run(['git', 'rev-parse', '--short', 'HEAD'])).stdout.trim()
+    }
   } catch {
-    // sin git aquí: el marco se queda sin rama
+    // sin git aquí: sin rama
   }
+  const antes = await read($, git)
+  if (antes.rama !== rama || antes.hash !== hash) {
+    await update($, git, () => ({ rama, hash }))
+  }
+
+  return rama
 }
 
 // Botón de commit + push sobre el cuadro de texto: envía el pedido de commit + push como si Cristian lo escribiera.
-// En blanco y negro: la etiqueta lleva la rama y cambia con el estado (reposo, subiendo, subido con el hash, nada que subir).
+// En blanco y negro: la etiqueta lleva la rama y cambia con el estado (reposo, comprobando, subiendo, subido con el hash, nada que subir); la rama va aparte, en gris y sin clic.
 // La ✕ lo cierra (antes pregunta); /commit-boton lo vuelve a mostrar. Lo cerrado se recuerda entre sesiones.
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
+  let vigia: { cancel: () => void } | null = null
 
   const parar = () => {
     animacion?.cancel()
@@ -51,6 +63,9 @@ export const register: Register = on => {
       await update($, modo, () => 'hidden')
     }
     void leerGit($)
+    // vigía: si cambias de rama (checkout, otra app…) el botón de la rama se entera en 2 s
+    vigia?.cancel()
+    vigia = $.clock.every(2000, () => leerGit($))
 
     return next(e)
   })
@@ -67,8 +82,12 @@ export const register: Register = on => {
   // Mientras corre el turno del botón, mira los comandos de git que lanza: si un push subió algo
   // (la salida trae «rama -> rama») y el hash del commit que lo acompaña («[rama abc1234] …»).
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const r = await next(e)
     const orden = typeof e.command === 'string' ? e.command : ''
+    // en cuanto el turno añade, guarda o sube algo, hay cambios: el botón pasa de «Comprobando» a «Subiendo»
+    if (/\bgit\b[^|;&]*\b(add|commit|push)\b/.test(orden) && (await read($, estado)) === 'running') {
+      await update($, subida, x => ({ ...x, cambios: true }))
+    }
+    const r = await next(e)
     if (!/\bgit\b/.test(orden) || (await read($, estado)) !== 'running' || !('result' in r) || r.isError) {
       return r
     }
@@ -76,7 +95,7 @@ export const register: Register = on => {
     const commit = /\[[^\]\s]+ ([0-9a-f]{7,40})\]/.exec(salida)
     const subio = /\bpush\b/.test(orden) && /\S+\s*->\s*\S+/.test(salida)
     if (commit || subio) {
-      await update($, subida, x => ({ push: x.push || subio, hash: commit?.[1]?.slice(0, 7) ?? x.hash }))
+      await update($, subida, x => ({ ...x, push: x.push || subio, hash: commit?.[1]?.slice(0, 7) ?? x.hash }))
     }
 
     return r
@@ -109,7 +128,7 @@ export const register: Register = on => {
 
     const fase = await read($, estado)
     const { rama } = await read($, git)
-    const { hash } = await read($, subida)
+    const { hash, cambios } = await read($, subida)
     const n = await read($, paso)
     const { Box, Button, Text } = $.ui.resolve(e)
 
@@ -133,19 +152,25 @@ export const register: Register = on => {
 
     const trabajando = fase === 'sent' || fase === 'running'
     const texto = trabajando
-      ? `${GIRO[n % GIRO.length]} Subiendo`
+      ? `${GIRO[n % GIRO.length]} ${cambios ? 'Subiendo' : 'Comprobando'}`
       : fase === 'done'
         ? `✓ Subido${hash ? ' ' + hash : ''}`
         : fase === 'none'
           ? '— Nada que subir'
           : 'Commit + Push ↑'
 
-    // El botón va a la izquierda; la ✕ queda pegada al borde derecho, y entre medias hay sitio para más botones.
+    // A la izquierda, la rama (gris, solo informa) y el botón; la ✕ queda pegada al borde derecho.
     return (
-      <Box marginBottom={1} gap={2} alignItems="center" width="100%">
+      <Box marginBottom={1} gap={1} alignItems="center" width="100%">
+        {rama ? (
+          // mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada
+          <Button key="rama" label={`⎇ ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
+        ) : (
+          <Text>{''}</Text>
+        )}
         <Button
           key="push"
-          label={rama ? `⎇ ${rama} · ${texto}` : texto}
+          label={texto}
           variant={fase === 'idle' ? 'primary' : 'secondary'}
           dimColor={fase !== 'idle'}
           onPress={async () => {
@@ -153,7 +178,13 @@ export const register: Register = on => {
             if ((await read($, estado)) !== 'idle') {
               return
             }
-            await update($, subida, () => ({ push: false, hash: '' }))
+            // la rama tiene que ser la que se ve: si ha cambiado, se actualiza y no se envía nada
+            const ahora = await leerGit($)
+            if (!ahora || ahora !== rama) {
+              $.ui.toast(ahora ? `La rama ha cambiado a ${ahora}. Revísala y vuelve a pulsar.` : 'Aquí no hay repositorio git.')
+              return
+            }
+            await update($, subida, () => ({ cambios: false, push: false, hash: '' }))
             await update($, estado, () => 'sent')
             await update($, paso, () => 0)
             parar()
@@ -163,7 +194,9 @@ export const register: Register = on => {
               parar()
               return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
             })
-            $.prompt.submit({ text: PEDIDO, asUser: true }).catch(async () => {
+            $.prompt.submit({ text: `${PEDIDO}
+
+El botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`, asUser: true }).catch(async () => {
               parar()
               await update($, estado, () => 'idle')
               $.ui.toast('No se pudo enviar el commit + push')
