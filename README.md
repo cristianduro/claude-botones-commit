@@ -3,7 +3,7 @@
 Un botón encima del cuadro de texto de Claude Code que hace **commit y push** con un clic.
 
 ```
-⎇ main · Commit + Push ↑                                              ✕
+[⎇ main]  [Commit + Push ↑]                                           ✕
 ```
 
 ## Qué hace
@@ -19,18 +19,23 @@ Si el proyecto tiene su propia orden (`.claude/skills/commit-push/` o `.claude/s
 
 ### Lo que verás en el botón
 
+A la izquierda, la rama actual en gris: solo informa y no se pulsa. Se actualiza sola cada 2 s si cambias de rama. Al pulsar, el botón vuelve a mirar la rama: si ya no es la que se ve, no envía nada y te avisa para que la revises.
+
+A su lado, el botón:
+
 | Estado | Botón |
 | --- | --- |
-| En reposo | `⎇ main · Commit + Push ↑` |
-| Trabajando (no responde a clics) | `⎇ main · ⠋ Subiendo` |
-| Subido (6 s) | `⎇ main · ✓ Subido 712c6b1` |
-| No había nada que subir (6 s) | `⎇ main · — Nada que subir` |
+| En reposo | `⎇ main` `Commit + Push ↑` |
+| Revisando los cambios (no responde a clics) | `⎇ main` `⠋ Comprobando` |
+| Hay cambios: commit y push en marcha | `⎇ main` `⠋ Subiendo` |
+| Subido (6 s) | `⎇ main` `✓ Subido 712c6b1` |
+| No había nada que subir (6 s) | `⎇ main` `— Nada que subir` |
 
 - **✕** (a la derecha) cierra el botón; antes pide confirmación. Queda cerrado también en las sesiones siguientes.
 - **`/commit-boton`** lo vuelve a mostrar.
 - **`/botones-commit:commit-push`** hace lo mismo que el botón, escrito a mano.
 
-**Coste:** el botón no gasta nada mientras está a la vista. Solo cuenta el turno que lanza al pulsarlo, igual que si escribieras el pedido.
+**Coste:** el botón no gasta nada mientras está a la vista, y vigilar la rama cada 2 s tampoco: es un `git rev-parse` local, sin Claude. Solo cuenta el turno que lanza al pulsarlo, igual que si escribieras el pedido.
 
 ## Requisitos
 
@@ -104,7 +109,7 @@ claude --plugin-dir ./claude-botones-commit
 
 - **No aparece el botón:** `claude plugin list` debe mostrar `botones-commit` activado. Si lo cerraste con ✕, escribe `/commit-boton`.
 - **Pulso y no pasa nada:** si Claude está trabajando, el pedido espera a que acabe el turno en curso. Si al pulsar aparece «No se pudo enviar el commit + push», vuelve a intentarlo.
-- **Se queda en «Subiendo»:** se libera solo a los 15 minutos; o escribe `/reload-plugins`.
+- **Se queda en «Comprobando» o «Subiendo»:** se libera solo a los 15 minutos; o escribe `/reload-plugins`.
 - **No veo la versión nueva:** primero `claude plugin marketplace update botones-commit`, luego `claude plugin update …` y `/reload-plugins`.
 
 ## Contenido del repositorio
