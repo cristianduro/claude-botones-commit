@@ -112,10 +112,13 @@ export const register: Register = on => {
     if (!/\bgit\b/.test(orden) || r.isError) {
       return r
     }
+    // el hash sale del commit («[main abc1234] …», salvo con -q) o, mejor, del push («abc1234..def5678  main -> main»)
     const commit = /\[[^\]\s]+ ([0-9a-f]{7,40})\]/.exec(salida)
     const subio = /\bpush\b/.test(orden) && /\S+\s*->\s*\S+/.test(salida)
+    const empujado = subio ? /[0-9a-f]{7,40}\.\.\.?([0-9a-f]{7,40})\s+\S+\s*->/.exec(salida) : null
+    const hash = empujado?.[1] ?? commit?.[1]
     if (commit || subio) {
-      await update($, subida, x => ({ ...x, push: x.push || subio, hash: commit?.[1]?.slice(0, 7) ?? x.hash }))
+      await update($, subida, x => ({ ...x, push: x.push || subio, hash: hash ? hash.slice(0, 7) : x.hash }))
     }
 
     return r
@@ -129,7 +132,11 @@ export const register: Register = on => {
       if (cortado) {
         await update($, subida, x => ({ ...x, fallo: x.fallo || cortado }))
       }
-      const { push, fallo } = await read($, subida)
+      const { push, fallo, hash } = await read($, subida)
+      if (push && !hash) {
+        const actual = (await read($, git)).hash
+        await update($, subida, x => ({ ...x, hash: actual }))
+      }
       await update($, estado, () => (fallo ? 'error' : push ? 'done' : 'none'))
       if (!fallo) {
         // el error se queda hasta pulsar «Entendido»; lo demás vuelve solo al reposo
