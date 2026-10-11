@@ -18,11 +18,10 @@ Si este proyecto tiene su propia orden (.claude/skills/commit-push/SKILL.md o .c
 const modo = atom({ plugin: 'botones-commit', key: 'modo' } as const, 'show' as Modo)
 const estado = atom({ plugin: 'botones-commit', key: 'estado' } as const, 'idle' as Estado)
 const paso = atom({ plugin: 'botones-commit', key: 'paso' } as const, 0)
+const antes = atom({ plugin: 'botones-commit', key: 'antes' } as const, '')
 const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', hash: '' } as Git)
 
-const NARANJA = '#e8833a'
-const VERDE = '#58c592'
-const GRIS = '#5a5a5e'
+const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 // rama y hash actuales, para el marco
 async function leerGit($: EngineInterface) {
@@ -36,7 +35,7 @@ async function leerGit($: EngineInterface) {
 }
 
 // Botón de commit + push sobre el cuadro de texto: envía el pedido de commit + push como si Cristian lo escribiera.
-// Marco fino que cambia con el estado: en reposo (rama), subiendo (barra que avanza) y subido (hash).
+// En blanco y negro: la etiqueta lleva la rama y cambia con el estado (reposo, subiendo, subido con el hash, nada que subir).
 // La ✕ lo cierra (antes pregunta); /commit-boton lo vuelve a mostrar. Lo cerrado se recuerda entre sesiones.
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
@@ -69,7 +68,9 @@ export const register: Register = on => {
     if ((await read($, estado)) === 'running') {
       parar()
       await leerGit($)
-      await update($, estado, () => 'done')
+      const { hash } = await read($, git)
+      const previo = await read($, antes)
+      await update($, estado, () => (hash && hash !== previo ? 'done' : 'none'))
       void $.clock.after(6000, () => update($, estado, () => 'idle'))
     }
 
@@ -113,40 +114,44 @@ export const register: Register = on => {
     }
 
     const trabajando = fase === 'sent' || fase === 'running'
-    const marco = trabajando ? NARANJA : fase === 'done' ? VERDE : GRIS
+    const texto = trabajando
+      ? `${GIRO[n % GIRO.length]} Subiendo`
+      : fase === 'done'
+        ? `✓ Subido ${hash}`
+        : fase === 'none'
+          ? '— Nada que subir'
+          : 'Commit + Push ↑'
 
-    // Los botones van a la izquierda; la ✕ queda pegada al borde derecho, y entre medias hay sitio para más botones.
+    // El botón va a la izquierda; la ✕ queda pegada al borde derecho, y entre medias hay sitio para más botones.
     return (
       <Box marginBottom={1} gap={2} alignItems="center" width="100%">
-        <Box borderStyle="round" borderColor={marco} flexDirection="row" flexShrink={0} paddingX={1} alignItems="center">
-          {trabajando ? (
-            <Text color={NARANJA} wrap="truncate">{`Subiendo ${'▰'.repeat(n % 6)}${'▱'.repeat(5 - (n % 6))}`}</Text>
-          ) : fase === 'done' ? (
-            <Text color={VERDE} wrap="truncate">{`✓ Subido${hash ? ` · ${hash}` : ''}`}</Text>
-          ) : (
-            <Button
-              key="push"
-              label={rama ? `⎇ ${rama}  ·  Commit + Push` : 'Commit + Push'}
-              plain
-              onPress={async () => {
-                await update($, estado, () => 'sent')
-                await update($, paso, () => 0)
-                parar()
-                animacion = $.clock.every(320, () => update($, paso, p => p + 1))
-                // por si el turno no llega a empezar, el botón se libera solo a los 15 minutos
-                void $.clock.after(15 * 60 * 1000, () => {
-                  parar()
-                  return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
-                })
-                $.prompt.submit({ text: PEDIDO, asUser: true }).catch(async () => {
-                  parar()
-                  await update($, estado, () => 'idle')
-                  $.ui.toast('No se pudo enviar el commit + push')
-                })
-              }}
-            />
-          )}
-        </Box>
+        <Button
+          key="push"
+          label={rama ? `⎇ ${rama} · ${texto}` : texto}
+          variant={fase === 'idle' ? 'primary' : 'secondary'}
+          dimColor={fase !== 'idle'}
+          onPress={async () => {
+            // mientras trabaja o enseña el resultado, pulsar no hace nada
+            if ((await read($, estado)) !== 'idle') {
+              return
+            }
+            await update($, antes, () => hash)
+            await update($, estado, () => 'sent')
+            await update($, paso, () => 0)
+            parar()
+            animacion = $.clock.every(120, () => update($, paso, p => p + 1))
+            // por si el turno no llega a empezar, el botón se libera solo a los 15 minutos
+            void $.clock.after(15 * 60 * 1000, () => {
+              parar()
+              return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
+            })
+            $.prompt.submit({ text: PEDIDO, asUser: true }).catch(async () => {
+              parar()
+              await update($, estado, () => 'idle')
+              $.ui.toast('No se pudo enviar el commit + push')
+            })
+          }}
+        />
         <Box flexGrow={1} />
         <Button key="x" label="✕" plain dimColor onPress={() => update($, modo, () => 'ask')} />
       </Box>
