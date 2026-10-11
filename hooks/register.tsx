@@ -3,8 +3,9 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Estado, Git, Modo, Subida } from '../types'
 
-// Lo único que se ve en la conversación al pulsar; el pedido completo viaja aparte, como contexto que solo lee Claude.
-const VISIBLE = 'Ejecutando acción del usuario: Commit + Push'
+// El botón lanza la orden del plugin (skills/commit-push), que lleva todas las reglas: en la conversación
+// solo se ve «/botones-commit:commit-push rama=…». Si la orden no está, se envía el pedido escrito.
+const ORDEN = 'botones-commit:commit-push'
 
 const PEDIDO = `Haz commit y push de los cambios pendientes. Es mi petición expresa. Hazlo en cada repositorio git de esta sesión: el directorio de trabajo principal y los directorios añadidos, uno por uno, cada uno con su commit y su push.
 
@@ -27,6 +28,20 @@ const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', 
 const GRIS_FONDO = '#3a3a3c'
 const ROJO = '#ff6b6b'
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+// Lanza la orden del plugin con la rama que se veía; si esta sesión no la tiene, envía el pedido escrito.
+async function lanzar($: EngineInterface, rama: string) {
+  const ordenes = await $.command.list()
+  if (ordenes.some(c => c.name === ORDEN)) {
+    await $.command.run({ command: ORDEN, args: `rama=${rama}` })
+
+    return
+  }
+  await $.prompt.submit({
+    text: `${PEDIDO}\n\nEl botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`,
+    asUser: true,
+  })
+}
 
 // Por qué ha fallado un comando del turno, en una frase corta; '' si no ha fallado.
 function motivoFallo(orden: string, salida: string, isError: boolean) {
@@ -72,8 +87,6 @@ async function leerGit($: EngineInterface) {
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
   let vigia: { cancel: () => void } | null = null
-  // el pedido de la pulsación en curso, con la rama que se veía; lo recoge el hook de prompt.submit
-  let pendiente = ''
 
   const parar = () => {
     animacion?.cancel()
@@ -91,17 +104,6 @@ export const register: Register = on => {
     vigia = $.clock.every(2000, () => leerGit($))
 
     return next(e)
-  })
-
-  // El mensaje del botón entra con el texto corto; el pedido completo va como contexto, que el usuario no ve.
-  on('prompt.submit', ($, e, next) => {
-    if (e.origin.kind !== 'plugin' || e.text !== VISIBLE || !pendiente) {
-      return next(e)
-    }
-    const pedido = pendiente
-    pendiente = ''
-
-    return next({ ...e, context: [...(e.context ?? []), pedido] })
   })
 
   // El botón queda desactivado desde que se pulsa hasta que acaba el turno que lanza.
@@ -208,7 +210,7 @@ export const register: Register = on => {
         ? `✓ Subido${hash ? ' ' + hash : ''}`
         : fase === 'none'
           ? '— Nada que subir'
-          : 'Commit + Push ↑'
+          : '─●─ Commit + Push ↑'
 
     // A la izquierda, la rama (gris, solo informa) y el botón; la ✕ queda pegada al borde derecho.
     return (
@@ -264,10 +266,7 @@ export const register: Register = on => {
                 parar()
                 return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
               })
-              pendiente = `${PEDIDO}
-
-El botón mostraba la rama «${rama}» en el directorio principal: si al empezar no es la rama actual, no hagas nada y avísame.`
-              $.prompt.submit({ text: VISIBLE, asUser: true }).catch(async () => {
+              lanzar($, rama).catch(async () => {
                 parar()
                 await update($, subida, x => ({ ...x, fallo: 'no se pudo enviar el pedido' }))
                 await update($, estado, () => 'error')

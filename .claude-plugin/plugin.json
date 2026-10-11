@@ -1,6 +1,6 @@
 {
   "name": "botones-commit",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Botón «Commit + Push» sobre el cuadro de texto: lanza su propia orden commit-push (incluida en el plugin). Con ✕ para cerrarlo (pide confirmación) y /commit-boton para volver a verlo.",
   "author": { "name": "Cristian Duro" },
   "types": "./types/index.d.ts"

@@ -8,7 +8,7 @@ Un botón encima del cuadro de texto de Claude Code que hace **commit y push** c
 
 ## Qué hace
 
-Al pulsarlo, en la conversación solo aparece «Ejecutando acción del usuario: Commit + Push»; el pedido completo le llega a Claude aparte, sin mostrarse. Le pide:
+Al pulsarlo lanza la orden del plugin `/botones-commit:commit-push rama=<rama>` (en la conversación solo se ve esa línea). La orden pide a Claude:
 
 1. revisar los cambios pendientes de **cada repositorio git de la sesión** (el directorio principal y los añadidos);
 2. pasar las comprobaciones del proyecto (tests, lint) si hay código sin comprobar;
@@ -25,7 +25,7 @@ A su lado, el botón:
 
 | Estado | Botón |
 | --- | --- |
-| En reposo | `⎇ main` `Commit + Push ↑` |
+| En reposo | `⎇ main` `─●─ Commit + Push ↑` |
 | Revisando los cambios (no responde a clics) | `⎇ main` `⠋ Comprobando` |
 | Hay cambios: commit y push en marcha | `⎇ main` `⠋ Subiendo` |
 | Subido (6 s) | `⎇ main` `✓ Subido 712c6b1` |
