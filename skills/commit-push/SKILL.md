@@ -8,7 +8,7 @@ argument-hint: "[rama]"
 
 El usuario ha pulsado el botón «Commit + Push» (mensaje «Ejecutando acción del usuario: Commit + Push (rama X de repo)») o ha escrito la orden: es su petición expresa de commit y push.
 
-**Rama:** el mensaje trae entre paréntesis la rama y el repositorio que el botón mostraba (`rama main de mi-repo`; o van en los argumentos: `$ARGUMENTS`). Antes de nada, comprueba en ese repositorio con `git rev-parse --abbrev-ref HEAD` que la rama es esa: si no coincide, **no hagas nada** y avisa al usuario de la rama real. No supongas nombres de rama: léelos siempre de git.
+**Rama:** el mensaje trae entre paréntesis la rama y el repositorio que el botón mostraba (`rama main de mi-repo`; o van en los argumentos: `$ARGUMENTS`). Antes de nada, comprueba en ese repositorio con `git branch --show-current` que la rama es esa: si no coincide, **no hagas nada** y avisa al usuario de la rama real. No supongas nombres de rama: léelos siempre de git.
 
 **Si el proyecto tiene su propia orden** (`.claude/skills/commit-push/SKILL.md` o `.claude/skills/commit/SKILL.md`) o reglas de commit en `CLAUDE.md`, léelas y síguelas en lugar de lo de abajo.
 

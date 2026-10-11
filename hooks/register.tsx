@@ -24,14 +24,19 @@ const puntos = (n: number) => {
 }
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
+// rama sin remota: Claude suele reintentar con «git push -u origin rama», y si ese push sale bien se olvida
+const SIN_REMOTA = 'la rama no tiene remota'
+
 // Por qué ha fallado un comando del turno, en una frase corta; '' si no ha fallado.
 function motivoFallo(orden: string, salida: string, isError: boolean) {
+  // «git add … && git commit … && git push» sin nada que guardar: el commit corta la cadena, pero no es un fallo
+  if (/\bgit\b[^|;&]*\bcommit\b/.test(orden) && /nothing to commit|nothing added to commit/.test(salida)) return ''
   if (/\bgit\b[^|;&]*\bpush\b/.test(orden)) {
     if (/\[rejected\]|non-fast-forward|fetch first/.test(salida)) return 'origin tiene commits nuevos'
-    if (/Permission denied|Authentication failed|could not read from remote|403/i.test(salida)) return 'sin acceso a GitHub'
+    if (/Permission denied|Authentication failed|could not read from remote|\b403\b/i.test(salida)) return 'sin acceso a GitHub'
+    if (/has no upstream branch|--set-upstream/.test(salida)) return SIN_REMOTA
     if (isError || /\b(error|fatal):/.test(salida)) return 'falló el push'
   } else if (/\bgit\b[^|;&]*\bcommit\b/.test(orden)) {
-    if (/nothing to commit|nothing added to commit/.test(salida)) return ''
     if (isError || /\b(error|fatal):/.test(salida)) return 'falló el commit'
   } else if (/\b(npm|pnpm|yarn)\b[^|;&]*\b(test|comprobar|lint|check)\b|\b(pytest|vitest|jest|eslint|tsc)\b/.test(orden)) {
     if (isError) return 'fallan las comprobaciones'
@@ -43,16 +48,22 @@ function motivoFallo(orden: string, salida: string, isError: boolean) {
 // Repositorio, rama y hash del directorio donde trabaja la sesión ahora (cambia al moverse entre carpetas),
 // leídos siempre de git: nunca se supone un nombre. Devuelve lo leído ('' sin git) y solo escribe el
 // estado si algo cambió, porque el vigía la llama cada 2 s.
+// safe.directory=*: en Windows git se niega a leer repos de otro dueño o de otra unidad («dubious ownership»)
+// y entonces no salía la rama; para leer la rama no hace falta esa protección
+const GIT = ['git', '-c', 'safe.directory=*']
+
 async function leerGit($: EngineInterface): Promise<Git> {
   let dato: Git = { repo: '', rama: '', hash: '' }
   try {
     const cwd = await $.session.cwd()
-    const raiz = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
-    const rama = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd })
-    if (raiz.exitCode === 0 && rama.exitCode === 0) {
-      const hash = (await $.process.run(['git', 'rev-parse', '--short', 'HEAD'], { cwd })).stdout.trim()
+    const raiz = await $.process.run([...GIT, 'rev-parse', '--show-toplevel'], { cwd })
+    // branch --show-current da la rama se llame como se llame (main, master, original…) y aunque el repo no tenga
+    // commits todavía; '' con HEAD desacoplado
+    const rama = await $.process.run([...GIT, 'branch', '--show-current'], { cwd })
+    if (raiz.exitCode === 0) {
+      const hash = (await $.process.run([...GIT, 'rev-parse', '--short', '--verify', '-q', 'HEAD'], { cwd })).stdout.trim()
       const repo = raiz.stdout.trim().replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
-      dato = { repo, rama: rama.stdout.trim(), hash }
+      dato = { repo, rama: rama.exitCode === 0 ? rama.stdout.trim() : '', hash }
     }
   } catch {
     // sin git aquí: sin repositorio ni rama
@@ -71,6 +82,18 @@ async function leerGit($: EngineInterface): Promise<Git> {
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
   let vigia: { cancel: () => void } | null = null
+  // cuenta las pulsaciones: el temporizador de 15 min de una pulsación vieja no toca a la siguiente
+  let pulsacion = 0
+
+  // vigía: si cambias de rama (checkout, otra app…) el botón de la rama se entera en 2 s. Se arranca al empezar la
+  // sesión y, si el plugin se cargó con la sesión ya empezada (sin session.start), en el primer pintado del botón
+  const vigilar = ($: EngineInterface) => {
+    if (vigia) {
+      return
+    }
+    void leerGit($)
+    vigia = $.clock.every(2000, () => leerGit($))
+  }
 
   const parar = () => {
     animacion?.cancel()
@@ -82,10 +105,9 @@ export const register: Register = on => {
     if ((await $.store.get('cerrado')) === true) {
       await update($, modo, () => 'hidden')
     }
-    void leerGit($)
-    // vigía: si cambias de rama (checkout, otra app…) el botón de la rama se entera en 2 s
     vigia?.cancel()
-    vigia = $.clock.every(2000, () => leerGit($))
+    vigia = null
+    vigilar($)
 
     return next(e)
   })
@@ -128,7 +150,7 @@ export const register: Register = on => {
     const empujado = subio ? /[0-9a-f]{7,40}\.\.\.?([0-9a-f]{7,40})\s+\S+\s*->/.exec(salida) : null
     const hash = empujado?.[1] ?? commit?.[1]
     if (commit || subio) {
-      await update($, subida, x => ({ ...x, push: x.push || subio, hash: hash ? hash.slice(0, 7) : x.hash }))
+      await update($, subida, x => ({ ...x, push: x.push || subio, hash: hash ? hash.slice(0, 7) : x.hash, fallo: subio && x.fallo === SIN_REMOTA ? '' : x.fallo }))
     }
 
     return r
@@ -170,8 +192,9 @@ export const register: Register = on => {
       return next(e)
     }
 
+    vigilar($)
     const fase = await read($, estado)
-    const { repo, rama } = await read($, git)
+    const { repo, rama, hash: cabeza } = await read($, git)
     const { hash, cambios, fallo } = await read($, subida)
     const n = await read($, paso)
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -206,12 +229,14 @@ export const register: Register = on => {
     // A la izquierda, la rama (gris, solo informa) y el botón; la ✕ queda pegada al borde derecho.
     return (
       <Box marginBottom={1} gap={1} alignItems="center" width="100%">
-        {rama ? (
-          // mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada
-          <Button key="rama" label={`⎇ ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
-        ) : (
-          <Text>{''}</Text>
-        )}
+        {/* siempre a la vista: mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada */}
+        <Button
+          key="rama"
+          label={`⎇ ${!repo ? 'sin repositorio' : rama || `HEAD suelto${cabeza ? ' ' + cabeza : ''}`}`}
+          variant="secondary"
+          dimColor
+          onPress={() => undefined}
+        />
         {fase === 'error' ? (
           // error: chip gris con el texto en rojo, el motivo al lado y «Entendido» para volver al reposo
           <Box gap={1} alignItems="center">
@@ -243,7 +268,8 @@ export const register: Register = on => {
               // la rama tiene que ser la que se ve: si ha cambiado, se actualiza y no se envía nada
               const ahora = await leerGit($)
               if (!ahora.rama || ahora.rama !== rama || ahora.repo !== repo) {
-                await update($, subida, () => ({ cambios: false, push: false, hash: '', fallo: ahora.rama ? `ahora es ${ahora.repo} · ${ahora.rama}` : 'aquí no hay repositorio git' }))
+                const fallo = !ahora.repo ? 'aquí no hay repositorio git' : !ahora.rama ? 'HEAD suelto: cámbiate a una rama' : `ahora es ${ahora.repo} · ${ahora.rama}`
+                await update($, subida, () => ({ cambios: false, push: false, hash: '', fallo }))
                 await update($, estado, () => 'error')
                 return
               }
@@ -253,7 +279,11 @@ export const register: Register = on => {
               parar()
               animacion = $.clock.every(120, () => update($, paso, p => p + 1))
               // por si el turno no llega a empezar, el botón se libera solo a los 15 minutos
+              const esta = ++pulsacion
               void $.clock.after(15 * 60 * 1000, () => {
+                if (esta !== pulsacion) {
+                  return
+                }
                 parar()
                 return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
               })
