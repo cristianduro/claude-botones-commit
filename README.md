@@ -30,6 +30,9 @@ A su lado, el botón:
 | Hay cambios: commit y push en marcha | `⎇ main` `⠋ Subiendo` |
 | Subido (6 s) | `⎇ main` `✓ Subido 712c6b1` |
 | No había nada que subir (6 s) | `⎇ main` `— Nada que subir` |
+| Algo falló (hasta pulsar «Entendido») | `⎇ main` **`✕ No se pudo subir`** (rojo sobre gris) `origin tiene commits nuevos` `Entendido` |
+
+Motivos que detecta: origin tiene commits nuevos, sin acceso a GitHub, falló el push, falló el commit, fallan las comprobaciones, la rama cambió, se interrumpió el turno, el turno acabó con un error.
 
 - **✕** (a la derecha) cierra el botón; antes pide confirmación. Queda cerrado también en las sesiones siguientes.
 - **`/commit-boton`** lo vuelve a mostrar.
