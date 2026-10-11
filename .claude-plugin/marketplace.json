@@ -1,0 +1,5 @@
+{
+  "name": "botones-commit",
+  "owner": { "name": "Cristian Duro" },
+  "plugins": [{ "name": "botones-commit", "source": "./", "description": "Botón Commit + Push sobre el cuadro de texto de Claude Code" }]
+}
