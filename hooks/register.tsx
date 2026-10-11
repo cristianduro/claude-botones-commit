@@ -5,16 +5,23 @@ import type { Estado, Git, Modo, Subida } from '../types'
 
 // Al pulsar, en la conversación solo aparece un mensaje corto. Las reglas (commit sin coautoría, sin --force,
 // comprobar la rama…) están en la skill del plugin (skills/commit-push), que Claude carga al leer este mensaje.
-const corto = (rama: string) => `Ejecutando acción del usuario: Commit + Push${rama ? ` (rama ${rama})` : ''}`
+const corto = (repo: string, rama: string) => `Ejecutando acción del usuario: Commit + Push${rama ? ` (rama ${rama} de ${repo})` : ''}`
 
 const modo = atom({ plugin: 'botones-commit', key: 'modo' } as const, 'show' as Modo)
 const estado = atom({ plugin: 'botones-commit', key: 'estado' } as const, 'idle' as Estado)
 const paso = atom({ plugin: 'botones-commit', key: 'paso' } as const, 0)
 const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { cambios: false, push: false, hash: '', fallo: '' } as Subida)
-const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { rama: '', hash: '' } as Git)
+const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { repo: '', rama: '', hash: '' } as Git)
 
 const GRIS_FONDO = '#3a3a3c'
 const ROJO = '#ff6b6b'
+// «Subiendo...»: los tres puntos se encienden uno a uno (cada ~0,5 s); los apagados son espacios de puntuación,
+// del mismo ancho que un punto, para que el botón no cambie de tamaño
+const puntos = (n: number) => {
+  const k = Math.floor(n / 4) % 4
+
+  return '.'.repeat(k) + '\u2008'.repeat(3 - k)
+}
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 // Por qué ha fallado un comando del turno, en una frase corta; '' si no ha fallado.
@@ -33,26 +40,29 @@ function motivoFallo(orden: string, salida: string, isError: boolean) {
   return ''
 }
 
-// Rama y hash actuales del directorio de la sesión. Devuelve la rama leída ('' sin git) y solo
-// escribe el estado si algo cambió, porque el vigía la llama cada 2 s.
-async function leerGit($: EngineInterface) {
-  let rama = ''
-  let hash = ''
+// Repositorio, rama y hash del directorio donde trabaja la sesión ahora (cambia al moverse entre carpetas),
+// leídos siempre de git: nunca se supone un nombre. Devuelve lo leído ('' sin git) y solo escribe el
+// estado si algo cambió, porque el vigía la llama cada 2 s.
+async function leerGit($: EngineInterface): Promise<Git> {
+  let dato: Git = { repo: '', rama: '', hash: '' }
   try {
-    const r = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    if (r.exitCode === 0) {
-      rama = r.stdout.trim()
-      hash = (await $.process.run(['git', 'rev-parse', '--short', 'HEAD'])).stdout.trim()
+    const cwd = await $.session.cwd()
+    const raiz = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
+    const rama = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd })
+    if (raiz.exitCode === 0 && rama.exitCode === 0) {
+      const hash = (await $.process.run(['git', 'rev-parse', '--short', 'HEAD'], { cwd })).stdout.trim()
+      const repo = raiz.stdout.trim().replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
+      dato = { repo, rama: rama.stdout.trim(), hash }
     }
   } catch {
-    // sin git aquí: sin rama
+    // sin git aquí: sin repositorio ni rama
   }
   const antes = await read($, git)
-  if (antes.rama !== rama || antes.hash !== hash) {
-    await update($, git, () => ({ rama, hash }))
+  if (antes.repo !== dato.repo || antes.rama !== dato.rama || antes.hash !== dato.hash) {
+    await update($, git, () => dato)
   }
 
-  return rama
+  return dato
 }
 
 // Botón de commit + push sobre el cuadro de texto: envía el pedido de commit + push como si Cristian lo escribiera.
@@ -161,7 +171,7 @@ export const register: Register = on => {
     }
 
     const fase = await read($, estado)
-    const { rama } = await read($, git)
+    const { repo, rama } = await read($, git)
     const { hash, cambios, fallo } = await read($, subida)
     const n = await read($, paso)
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -186,7 +196,9 @@ export const register: Register = on => {
 
     const trabajando = fase === 'sent' || fase === 'running'
     const texto = trabajando
-      ? `${GIRO[n % GIRO.length]} ${cambios ? 'Subiendo' : 'Comprobando'}`
+      ? cambios
+        ? `Subiendo${puntos(n)}`
+        : `${GIRO[n % GIRO.length]} Comprobando`
       : fase === 'done'
         ? `✓ Subido${hash ? ' ' + hash : ''}`
         : fase === 'none'
@@ -198,7 +210,7 @@ export const register: Register = on => {
       <Box marginBottom={1} gap={1} alignItems="center" width="100%">
         {rama ? (
           // mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada
-          <Button key="rama" label={`⎇ ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
+          <Button key="rama" label={`⎇ ${repo} · ${rama}`} variant="secondary" dimColor onPress={() => undefined} />
         ) : (
           <Text>{''}</Text>
         )}
@@ -232,8 +244,8 @@ export const register: Register = on => {
               }
               // la rama tiene que ser la que se ve: si ha cambiado, se actualiza y no se envía nada
               const ahora = await leerGit($)
-              if (!ahora || ahora !== rama) {
-                await update($, subida, () => ({ cambios: false, push: false, hash: '', fallo: ahora ? `la rama cambió a ${ahora}` : 'aquí no hay repositorio git' }))
+              if (!ahora.rama || ahora.rama !== rama || ahora.repo !== repo) {
+                await update($, subida, () => ({ cambios: false, push: false, hash: '', fallo: ahora.rama ? `ahora es ${ahora.repo} · ${ahora.rama}` : 'aquí no hay repositorio git' }))
                 await update($, estado, () => 'error')
                 return
               }
@@ -247,7 +259,7 @@ export const register: Register = on => {
                 parar()
                 return update($, estado, s => (s === 'sent' || s === 'running' ? 'idle' : s))
               })
-              $.prompt.submit({ text: corto(rama), asUser: true }).catch(async () => {
+              $.prompt.submit({ text: corto(repo, rama), asUser: true }).catch(async () => {
                 parar()
                 await update($, subida, x => ({ ...x, fallo: 'no se pudo enviar el pedido' }))
                 await update($, estado, () => 'error')
