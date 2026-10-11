@@ -1,14 +1,10 @@
 # botones-commit
 
-Un botón **Commit + Push ↑** encima del cuadro de texto de Claude Code. Al pulsarlo envía `/commit-push`, como si lo hubieras escrito.
+Un botón **Commit + Push ↑** encima del cuadro de texto de Claude Code. Al pulsarlo envía a Claude, como si lo hubieras escrito tú, el pedido de hacer commit (tú como único autor, sin coautoría de Claude) y push de la rama, sin `--force`. Si el proyecto tiene su propio `.claude/skills/commit-push/` o reglas de commit en `CLAUDE.md`, las sigue. La misma orden está también como `/botones-commit:commit-push`.
 
 - **✕** a su derecha lo cierra, pidiendo confirmación. Lo cerrado se recuerda entre sesiones.
 - **`/commit-boton`** lo vuelve a mostrar.
 - No gasta nada mientras está visible: solo cuenta el turno que lanza al pulsarlo.
-
-## Requisito
-
-Una orden `/commit-push` en el proyecto o en tu carpeta de usuario (`.claude/skills/commit-push/SKILL.md`). El plugin solo pone el botón; no incluye la orden.
 
 ## Instalación
 
