@@ -13,10 +13,7 @@ const paso = atom({ plugin: 'botones-commit', key: 'paso' } as const, 0)
 const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { cambios: false, push: false, hash: '', fallo: '' } as Subida)
 const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { repo: '', rama: '', hash: '' } as Git)
 
-const NEGRO_FONDO = '#20201f'
-// fondo del bloque entero (sin borde); el gris es el borde de la rama
-const NEGRO_BANDA = '#151515'
-const GRIS_BORDE = '#373736'
+const GRIS_FONDO = '#3a3a3c'
 const ROJO = '#ff6b6b'
 // «⠋ Comprobando...» y «⠋ Subiendo...»: spinner y los tres puntos se encienden uno a uno (cada ~0,5 s); los apagados son espacios de puntuación,
 // del mismo ancho que un punto, para que el botón no cambie de tamaño
@@ -222,7 +219,7 @@ export const register: Register = on => {
 
     if (actual === 'ask') {
       return (
-        <Box marginBottom={1} gap={2} alignItems="center" backgroundColor={NEGRO_BANDA} paddingX={1}>
+        <Box marginBottom={1} gap={2} alignItems="center">
           <Text>¿Cerrar el botón? Para recuperarlo: /commit-boton</Text>
           <Button
             key="si"
@@ -249,7 +246,7 @@ export const register: Register = on => {
 
     // A la izquierda, la rama (gris, solo informa) y el botón; la ✕ queda pegada al borde derecho.
     return (
-      <Box marginBottom={1} gap={1} alignItems="center" width="100%" backgroundColor={NEGRO_BANDA} paddingX={1}>
+      <Box marginBottom={1} gap={1} alignItems="center" width="100%">
         {/* siempre a la vista: mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada */}
         <Button
           key="rama"
@@ -259,9 +256,9 @@ export const register: Register = on => {
           onPress={() => undefined}
         />
         {fase === 'error' ? (
-          // error: chip negro con borde gris redondeado y el texto en rojo, el motivo al lado y «Entendido» para volver al reposo
+          // error: chip gris con el texto en rojo, el motivo al lado y «Entendido» para volver al reposo
           <Box gap={1} alignItems="center">
-            <Box backgroundColor={NEGRO_FONDO} borderStyle="round" borderColor={GRIS_BORDE} paddingX={1}>
+            <Box backgroundColor={GRIS_FONDO} paddingX={1}>
               <Text color={ROJO} bold>✕ No se pudo subir</Text>
             </Box>
             <Text dimColor>{fallo}</Text>
