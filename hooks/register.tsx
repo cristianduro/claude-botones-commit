@@ -14,7 +14,7 @@ const subida = atom({ plugin: 'botones-commit', key: 'subida' } as const, { camb
 const git = atom({ plugin: 'botones-commit', key: 'git' } as const, { repo: '', rama: '', hash: '' } as Git)
 
 const NEGRO_FONDO = '#20201f'
-// fondo y borde del bloque entero, los del aviso «Memory updated» de la app
+// fondo del bloque entero (sin borde); el gris es el borde de la rama
 const NEGRO_BANDA = '#151515'
 const GRIS_BORDE = '#373736'
 const ROJO = '#ff6b6b'
@@ -222,7 +222,7 @@ export const register: Register = on => {
 
     if (actual === 'ask') {
       return (
-        <Box marginBottom={1} gap={2} alignItems="center" backgroundColor={NEGRO_BANDA} borderStyle="round" borderColor={GRIS_BORDE} paddingX={1}>
+        <Box marginBottom={1} gap={2} alignItems="center" backgroundColor={NEGRO_BANDA} paddingX={1}>
           <Text>¿Cerrar el botón? Para recuperarlo: /commit-boton</Text>
           <Button
             key="si"
@@ -249,7 +249,7 @@ export const register: Register = on => {
 
     // A la izquierda, la rama (gris, solo informa) y el botón; la ✕ queda pegada al borde derecho.
     return (
-      <Box marginBottom={1} gap={1} alignItems="center" width="100%" backgroundColor={NEGRO_BANDA} borderStyle="round" borderColor={GRIS_BORDE} paddingX={1}>
+      <Box marginBottom={1} gap={1} alignItems="center" width="100%" backgroundColor={NEGRO_BANDA} paddingX={1}>
         {/* siempre a la vista: mismo botón nativo que el de al lado, para que mida lo mismo; gris y pulsarlo no hace nada */}
         <Button
           key="rama"
