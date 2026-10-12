@@ -25,6 +25,22 @@ const puntos = (n: number) => {
 
   return '.'.repeat(k) + '\u2008'.repeat(3 - k)
 }
+// vigía: si cambias de rama (checkout, otra app…) el botón de la rama se entera en 2 s. Se arranca al empezar la
+// sesión y, si el plugin se cargó con la sesión ya empezada (sin session.start), en el primer pintado del botón
+let vigia: { cancel: () => void } | null = null
+function vigilar($: EngineInterface) {
+  if (vigia) {
+    return
+  }
+  void leerGit($)
+  vigia = $.clock.every(2000, () => leerGit($))
+}
+
+// /commit-boton: registrarlo otra vez lo sustituye, así que se puede llamar las veces que haga falta
+async function registrarComando($: EngineInterface) {
+  await $.command.register({ name: 'commit-boton', description: 'Muestra otra vez el botón Commit + Push' })
+}
+
 const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 // rama sin remota: Claude suele reintentar con «git push -u origin rama», y si ese push sale bien se olvida
@@ -84,27 +100,22 @@ async function leerGit($: EngineInterface): Promise<Git> {
 // La ✕ lo cierra (antes pregunta); /commit-boton lo vuelve a mostrar. Lo cerrado se recuerda entre sesiones.
 export const register: Register = on => {
   let animacion: { cancel: () => void } | null = null
-  let vigia: { cancel: () => void } | null = null
   // cuenta las pulsaciones: el temporizador de 15 min de una pulsación vieja no toca a la siguiente
   let pulsacion = 0
-
-  // vigía: si cambias de rama (checkout, otra app…) el botón de la rama se entera en 2 s. Se arranca al empezar la
-  // sesión y, si el plugin se cargó con la sesión ya empezada (sin session.start), en el primer pintado del botón
-  const vigilar = ($: EngineInterface) => {
-    if (vigia) {
-      return
-    }
-    void leerGit($)
-    vigia = $.clock.every(2000, () => leerGit($))
-  }
+  let comandoListo = false
 
   const parar = () => {
     animacion?.cancel()
     animacion = null
   }
 
+  // Con este enganche (que no cambia nada) session.start vuelve a dispararse en cada /reload-plugins, no solo
+  // cuando el módulo ha cambiado: así /commit-boton se registra también al recargar
+  on('plugin.register', ($, e, next) => next(e)).catch(($, e, next) => next(e))
+
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'commit-boton', description: 'Muestra otra vez el botón Commit + Push' })
+    comandoListo = true
+    await registrarComando($)
     if ((await $.store.get('cerrado')) === true) {
       await update($, modo, () => 'hidden')
     }
@@ -190,6 +201,13 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    // por si el plugin se cargó sin session.start: antes de mirar si está cerrado, que es cuando hace falta el comando
+    if (!comandoListo) {
+      comandoListo = true
+      void registrarComando($).catch(() => {
+        comandoListo = false
+      })
+    }
     const actual = await read($, modo)
     if (e.props.hasSurvey || actual === 'hidden') {
       return next(e)

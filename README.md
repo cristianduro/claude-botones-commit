@@ -110,7 +110,7 @@ claude --plugin-dir ./claude-botones-commit
 
 ## Si algo no va
 
-- **No aparece el botón:** `claude plugin list` debe mostrar `botones-commit` activado. Si lo cerraste con ✕, escribe `/commit-boton`.
+- **No aparece el botón:** `claude plugin list` debe mostrar `botones-commit` activado. Si lo cerraste con ✕, escribe `/commit-boton` (si tampoco sale, `/reload-plugins` lo vuelve a registrar).
 - **Pulso y no pasa nada:** si Claude está trabajando, el pedido espera a que acabe el turno en curso. Si al pulsar aparece «No se pudo enviar el commit + push», vuelve a intentarlo.
 - **Se queda en «Comprobando» o «Subiendo»:** se libera solo a los 15 minutos; o escribe `/reload-plugins`.
 - **No veo la versión nueva:** primero `claude plugin marketplace update botones-commit`, luego `claude plugin update …` y `/reload-plugins`.
